@@ -1,0 +1,138 @@
+---
+title: "TCGA data analysis"
+output: html_notebook
+---
+
+```{r}
+library(TCGAbiolinks)
+library(MultiAssayExperiment)
+library(maftools)
+library(tidyverse)
+library(ComplexHeatmap)
+```
+
+```{r}
+# Access indexed clinical data
+clinical <- GDCquery_clinic("TCGA-COAD")
+head(clinical)
+
+```
+
+Examin clinical data of specific patient.
+```{r}
+clinical %>% 
+  dplyr::filter(submitter_id == "TCGA-AA-3562") %>% 
+  t %>% 
+  as.data.frame
+```
+
+Download clinical data.
+```{r}
+query <- GDCquery(project = "TCGA-ACC", 
+                  data.category = "Clinical",
+                  data.type = "Clinical Supplement", 
+                  data.format = "BCR Biotab")
+
+GDCdownload(query)
+
+clinical.BCRtab.all <- GDCprepare(query)
+
+names(clinical.BCRtab.all)
+```
+Examine drug treatment in clinical data.
+```{r}
+clinical.BCRtab.all$clinical_drug_acc %>%
+  head() %>%
+  as.data.frame()
+```
+Download gene expression data.
+```{r}
+query.exp.hg38 <- GDCquery(project = "TCGA-GBM", 
+                  data.category = "Transcriptome Profiling", 
+                  data.type = "Gene Expression Quantification", 
+                  workflow.type = "STAR - Counts",
+                  barcode =  c("TCGA-14-0736-02A-01R-2005-01", "TCGA-06-0211-02A-02R-2005-01"))
+
+GDCdownload(query.exp.hg38)
+
+raw.counts <- GDCprepare(query = query.exp.hg38, summarizedExperiment = FALSE)
+
+head(raw.counts)
+```
+
+Download mutation data.
+```{r}
+# GDCquery_Maf download the data from GDC
+query.maf <- GDCquery(project = "TCGA-GBM", 
+                      data.category = "Simple Nucleotide Variation",
+                      access = "open",
+                      data.type = "Masked Somatic Mutation",
+                      workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking")
+
+GDCdownload(query.maf)
+
+maf <- GDCprepare(query.maf)
+
+maf <- maf %>% maftools::read.maf(.)
+```
+Draw an interactive summary table.
+```{r}
+# install.packages("DT")
+library("DT")
+
+datatable(getSampleSummary(maf),
+          filter = "top",
+          options = list(scrollX = TRUE,
+                         keys = TRUE,
+                         pageLength = 5),
+          rownames = FALSE)
+          
+```
+Gene alteration summary.
+```{r}
+plotmafSummary(maf = maf,
+               rmOutlier = TRUE,
+               addStat = "median",
+               dashboard = TRUE)
+```
+Gene alteration plot.
+```{r}
+oncoplot(maf = maf,
+         top = 10,
+         removeNonMutated = TRUE)
+
+
+```
+Transition-transversion plot.
+```{r}
+titv = titv(maf = maf,
+            plot = FALSE,
+            useSyn = TRUE)
+# plot titv summary
+plotTiTv(res = titv)
+```
+Download CNV data.
+```{r}
+query.cnv <- GDCquery(project = "TCGA-GBM",
+                      data.category = "Copy Number Variation",
+                      data.type = "Gene Level Copy Number",
+                      access = "open")
+
+GDCdownload(query.cnv)
+
+scores <- GDCprepare(query.cnv)
+# duplicated samples exist. Cannot ruturn the result.
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
